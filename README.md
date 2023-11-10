@@ -177,31 +177,9 @@ Optional below, as seen in pic above: RS485 between JK-BMS GPS port and ESP32, u
 
 The RS485-TTL jack of the BMS can be attached to any UART pins of the ESP. A hardware UART should be preferred because of the high baudrate (115200 baud). The connector is called 4 Pin JST with 1.25mm pitch.
 
-## Installation
-
-You can install this component with [ESPHome external components feature](https://esphome.io/components/external_components.html) like this:
-```yaml
-external_components:
-  - source: github://uksa007/esphome-jk-bms-can@main
-```
-
-or just use the `esp32-example-can.yaml` as proof of concept:
-
-```bash
-# Install esphome
-pip3 install esphome
-
-# Clone this external component
-git clone https://github.com/uksa007/esphome-jk-bms-can.git
-cd esphome-jk-bms-can
-
-# Create a secrets.yaml containing some setup specific secrets
-cat > secrets.yaml <<EOF
-wifi_ssid: MY_WIFI_SSID
-wifi_password: MY_WIFI_PASSWORD
-
-# Validate the configuration, create a binary, upload it, and start logs
-esphome run esp32-example-can.yaml
+## Firmware releases for direct flashing to ESP32
+I will be releasing Firmware for direct flashing to ESP32 using [ESPHome-flasher](https://github.com/esphome/esphome-flasher/releases)
+Web page flshing may also be an option.
 
 # Optional add to Home Assistant
 In Home Assistant under settings->Intergration "Add Intergration" select ESPHome add device jk-bms-can if found or supply ip address of ESP32
