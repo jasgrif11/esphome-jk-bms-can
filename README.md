@@ -184,7 +184,7 @@ Subsquent updates or if you have my Harware interface, can be perfomred from the
 ## Optional add to Home Assistant
 In Home Assistant under settings->Intergration "Add Intergration" select ESPHome add device jk-bms-can if found or supply ip address of ESP32
 
-```
+
 ## Example CAN messages
 
 ```
