@@ -179,9 +179,10 @@ The RS485-TTL jack of the BMS can be attached to any UART pins of the ESP. A har
 
 ## Firmware releases for direct flashing to ESP32
 I will be releasing Firmware for direct flashing to ESP32 using [ESPHome-flasher](https://github.com/esphome/esphome-flasher/releases)
-Web page flshing may also be an option.
 
-# Optional add to Home Assistant
+Web page flashing may also be an option.
+
+## Optional add to Home Assistant
 In Home Assistant under settings->Intergration "Add Intergration" select ESPHome add device jk-bms-can if found or supply ip address of ESP32
 
 ```
