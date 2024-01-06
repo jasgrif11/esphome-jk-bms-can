@@ -13,7 +13,7 @@ substitutions:
 # --------------------------------------
 # Battery Charging setting:
 # This is max charging amps eg 50A, for Bulk - Constant Current charging(CC), should be at least 10A less than BMS change current protection, 0.5C max 
-  charge_a: "200"
+  charge_a: "100"
 # Absorption Voltage for Constant Voltage charging(CV). This is Absorption voltage you want the inverter to change with 55.2 eg 3.45v/cell for 16 cells 48V battery. 
   absorption_v: "57"
 # Absorption time in minutes to hold charge voltage after charge voltage is reached eg 30
@@ -23,7 +23,7 @@ substitutions:
 # --------------------------------------
 # Battery Discharge setting:
 # Max discharge amps eg 100, should be at least 10A less than BMS over dischange current protection, 0.5C max
-  discharge_a: "200"
+  discharge_a: "100"
 # Minimum discharge voltage eg 48v/16 = 3V per cell
   min_dischange_v: "47"
 # --------------------------------------
