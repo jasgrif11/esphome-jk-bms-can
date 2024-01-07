@@ -256,13 +256,15 @@ interval:
                 {
                   dischargeCurrent = 0;
                 }
+                
               }
-
+              id(can_discharge_current).publish_state(dischargeCurrent);
               can_mesg[4] = dischargeCurrent & 0xff;
               can_mesg[5] = dischargeCurrent >> 8 & 0xff;
             } else {
               can_mesg[4] = 0x00;
               can_mesg[5] = 0x00;
+              id(can_discharge_current).publish_state(0);
             }
             can_mesg[6] = uint16_t(${min_dischange_v} * 10) & 0xff;
             can_mesg[7] = uint16_t(${min_dischange_v} * 10) >> 8 & 0xff;
@@ -585,6 +587,14 @@ sensor:
                 (minutes ? to_string(minutes) + "m " : "") +
                 (to_string(seconds) + "s")
               ).c_str();
+              
+  - platform: template
+    name: "${name} CAN Discharge Current"
+    id: "can_discharge_current"
+    unit_of_measurement: A
+    icon: mdi:current-dc
+    
+    
 text_sensor:
   - platform: jk_bms
     errors:
