@@ -258,9 +258,11 @@ interval:
                 }
                 
               }
-              id(can_discharge_current).publish_state(dischargeCurrent);
+              
               can_mesg[4] = dischargeCurrent & 0xff;
               can_mesg[5] = dischargeCurrent >> 8 & 0xff;
+
+              id(can_discharge_current).publish_state(dischargeCurrent / 10);
             } else {
               can_mesg[4] = 0x00;
               can_mesg[5] = 0x00;
