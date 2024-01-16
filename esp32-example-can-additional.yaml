@@ -224,17 +224,14 @@ interval:
             } else {
                 id(charge_status) = "Wait";
             }
-            
-            //routine to modify the charging current due to high voltage
-            
-            
+
             uint16_t packvoltage = uint16_t(id(total_voltage).state * 100);//hundreths
-            uint16_t charging_voltage = uint16_t(id(charging_voltage).state * 100);//hundreths
-            uint16_t charging_current = uint16_t(id(charging_current).state * 10);//tenths
+            uint16_t chargingvoltage = uint16_t(id(charging_voltage).state * 100); //hundreths
+            uint16_t chargingcurrent = uint16_t(id(charging_current).state * 10); //tenths
             
-            if (packvoltage > charging_voltage-200) // Within 2V of max in hundreths
+            if (packvoltage >= (chargingvoltage-200)) // Within 2V of max in hundreths
             {
-               charging_current = charging_current * (charging_voltage-packvoltage)/200;
+               chargingcurrent = chargingcurrent * (chargingvoltage-packvoltage)/200;
             }
             
             
@@ -242,8 +239,8 @@ interval:
             if ((id(charge_status) == "Bulk") | (id(charge_status) == "Absorption") | (id(inverter_chg_on).state)) {
                can_mesg[0] = uint16_t(id(charging_voltage).state * 10) & 0xff;
                can_mesg[1] = uint16_t(id(charging_voltage).state * 10) >> 8 & 0xff;
-               can_mesg[2] = charging_current & 0xff;
-               can_mesg[3] = charging_current >> 8 & 0xff;
+               can_mesg[2] = chargingcurrent & 0xff;
+               can_mesg[3] = chargingcurrent >> 8 & 0xff;
             } else {
                can_mesg[0] = uint16_t((id(charging_voltage).state - ${rebulk_offset}) * 10) & 0xff;
                can_mesg[1] = uint16_t((id(charging_voltage).state - ${rebulk_offset}) * 10) >> 8 & 0xff;
