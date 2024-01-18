@@ -233,10 +233,11 @@ interval:
             uint16_t packvoltage = uint16_t(id(total_voltage).state * 100);//hundreths
             uint16_t chargingvoltage = uint16_t(id(charging_voltage).state * 100); //hundreths
             uint16_t chargingcurrent = uint16_t(id(charging_current).state * 10); //tenths
+            uint16_t chargeTaperVoltage = uint16_t(id(charge_taper_voltage).state * 100);
             
-            if (packvoltage >= (chargingvoltage-200)) // Within 2V of max in hundreths
+            if (packvoltage >= (chargingvoltage-chargeTaperVoltage)) // Within 2V of max in hundreths
             {
-               chargingcurrent = chargingcurrent * (chargingvoltage-packvoltage)/200;
+               chargingcurrent = chargingcurrent * (chargingvoltage-packvoltage)/chargeTaperVoltage;
             }
             
             
@@ -694,6 +695,18 @@ number:
     max_value: 55
     mode: slider
     initial_value: 49
+    unit_of_measurement: V
+    icon: mdi:battery-charging
+    optimistic: true
+    
+  - platform: template
+    name: "${name} Charge Taper Voltage"
+    id: "charge_taper_voltage"
+    step: 0.1
+    min_value: 0
+    max_value: 4
+    mode: slider
+    initial_value: 2
     unit_of_measurement: V
     icon: mdi:battery-charging
     optimistic: true
