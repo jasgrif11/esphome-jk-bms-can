@@ -237,7 +237,7 @@ interval:
             uint16_t chargingcurrent = uint16_t(id(charging_current).state * 10); //tenths
             uint16_t chargeTaperVoltage = uint16_t(id(charge_taper_voltage).state * 100);
             
-            if (packvoltage >= (chargingvoltage-chargeTaperVoltage)) // Within 2V of max in hundreths
+            if ((packvoltage >= (chargingvoltage-chargeTaperVoltage)) && (chargeTaperVoltage > 0)) // Within 2V of max in hundreths
             {
                chargingcurrent = chargingcurrent * (chargingvoltage-packvoltage)/chargeTaperVoltage;
             }
