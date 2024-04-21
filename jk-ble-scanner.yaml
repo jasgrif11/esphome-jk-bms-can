@@ -1,0 +1,99 @@
+# Version info, for full change log:- https://github.com/Uksa007/esphome-jk-bms-can/discussions/2
+# V1.13.3.1 Added Discharge slider
+# V1.13.3 Improve compatibility with Deye and other inverters
+# V1.13.2 Send Max Temperature of T1, T2 to inverter
+# V1.13.1 Fix compile issues with new version of ESPhome 2023.4.0, set rebulk offset to 2.5
+substitutions:
+# --------------------------
+# name that will appear in esphome and homeassistant.
+  name: jk-bms-can
+# --------------------------
+
+# ESP32 CAN/Serail port pins:
+# GPIO pins your CAN bus transceiver(TJA1050) is connected to the ESP, note! TX->TX and RX->RX. 
+  can_tx_pin: GPIO23 #10
+  can_rx_pin: GPIO22 #09
+# GPIO pins your JK-BMS RS485(TTL) is connected to the ESP TX->RX and RX->TX. 
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  
+  mac_address: C8:47:8C:E1:E2:E1
+  protocol_version: JK02
+# --------------------------------------
+#### Don't make changes below this ####
+  external_components_source: github://jasgrif11/esphome-jk-bms-can@reverted
+
+esphome:
+  name: ${name}
+#  on_boot:
+#    then:
+ #     - switch.turn_on: inverter_charging
+ #     - switch.turn_on: inverter_discharging
+
+
+esp32:
+  board: esp32doit-devkit-v1
+#  framework:
+#    type: esp-idf
+#    version: latest
+
+external_components:
+  - source: ${external_components_source}
+    refresh: 0s
+
+globals:
+  - id: can_305_rx
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: charge_status
+    type: std::string
+    restore_value: no
+    initial_value: '"Startup"'
+
+button:
+  - platform: restart
+    name: "Restart button"
+    id: restart_button
+    internal: true
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Jk-Bms-Can Fallback Hotspot"
+
+
+captive_portal:
+
+ota:
+  password: "9781ec081ce225993c3f831e8ac93d9c"
+
+logger:
+  level: DEBUG
+  logs:
+    wifi: WARN
+
+api:
+  reboot_timeout: 0s
+
+esp32_ble_tracker:
+  on_ble_advertise:
+    then:
+      - lambda: |-
+          if (x.get_name().rfind("JK-", 0) == 0 || x.get_name().rfind("JK_", 0) == 0) {
+            ESP_LOGI("ble_adv", "New JK-BMS found");
+            ESP_LOGI("ble_adv", "  Name: %s", x.get_name().c_str());
+            ESP_LOGI("ble_adv", "  MAC address: %s", x.address_str().c_str());
+            ESP_LOGD("ble_adv", "  Advertised service UUIDs:");
+            for (auto uuid : x.get_service_uuids()) {
+              ESP_LOGD("ble_adv", "    - %s", uuid.to_string().c_str());
+            }
+          }
+
+text_sensor:
+  - platform: ble_scanner
+    name: "BLE Devices Scanner"
+
