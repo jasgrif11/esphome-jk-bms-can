@@ -13,10 +13,9 @@ substitutions:
 # --------------------------------------
 # Battery Charging setting:
 # This is max charging amps eg 50A, for Bulk - Constant Current charging(CC), should be at least 10A less than BMS change current protection, 0.5C max 
-  charge_a: "100"
-  charge_taper: "0"
+  charge_a: "200"
 # Absorption Voltage for Constant Voltage charging(CV). This is Absorption voltage you want the inverter to change with 55.2 eg 3.45v/cell for 16 cells 48V battery. 
-  absorption_v: "55.2"
+  absorption_v: "57"
 # Absorption time in minutes to hold charge voltage after charge voltage is reached eg 30
   absorption_time: "30"
 # Rebulk offset, x Volts below absorption volatge battery will request rebulk, eg 55.2-3 = 52.5v, roughly 90% SOC.
@@ -24,10 +23,9 @@ substitutions:
 # --------------------------------------
 # Battery Discharge setting:
 # Max discharge amps eg 100, should be at least 10A less than BMS over dischange current protection, 0.5C max
-  discharge_a: "100"
-  discharge_taper: "50"
+  discharge_a: "200"
 # Minimum discharge voltage eg 48v/16 = 3V per cell
-  min_dischange_v: "47"
+  min_dischange_v: "40"
 # --------------------------------------
 # Battery State of Health (SOH) setting:
 # Maximum charging cycles is used to calculate the battey SOH, LF280K=6000.0 LF280=3000.0 (decimal is required)
@@ -38,8 +36,11 @@ substitutions:
   can_tx_pin: GPIO23 #10
   can_rx_pin: GPIO22 #09
 # GPIO pins your JK-BMS RS485(TTL) is connected to the ESP TX->RX and RX->TX. 
-  tx_pin: GPIO17
-  rx_pin: GPIO16
+#  tx_pin: GPIO17
+#  rx_pin: GPIO16
+  
+  mac_address: C8:47:80:06:00:70
+  protocol_version: JK02
 # --------------------------------------
 #### Don't make changes below this ####
   external_components_source: github://jasgrif11/esphome-jk-bms-can@reverted
@@ -81,17 +82,12 @@ button:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  manual_ip:
-    static_ip: 192.168.107.203
-    gateway: 192.168.107.1
-    subnet: 255.255.255.0
-    dns1: 192.168.107.1
-    dns2: 8.8.8.8
+
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
     ssid: "Jk-Bms-Can Fallback Hotspot"
-    password: "12345678"
-    
+
+
 captive_portal:
 
 ota:
@@ -126,23 +122,18 @@ light:
     name: "Builtin LED"
     internal: true
 
-uart:
-  id: uart_0
-  baud_rate: 115200
-  rx_buffer_size: 384
-  tx_pin: ${tx_pin}
-  rx_pin: ${rx_pin}
-  #debug:
-  #  direction: BOTH
 
-jk_modbus:
-  id: modbus0
-  uart_id: uart_0
+esp32_ble_tracker:
 
-jk_bms:
-  id: bms0
-  jk_modbus_id: modbus0
-  enable_fake_traffic: false
+ble_client:
+  - mac_address: ${mac_address}
+    id: client0
+
+jk_bms_ble:
+  - ble_client_id: client0
+    protocol_version: ${protocol_version}
+    throttle: 5s
+    id: bms0
 
 canbus:
   - platform: esp32_can
@@ -165,8 +156,10 @@ interval:
           can_id: 0x359
           data: !lambda |-
             uint8_t can_mesg[] = {0, 0, 0, 0, 0, 0, 0, 0};
-            uint16_t jk_errormask = id(errors_bitmask).state;
             int batt_mods = ${batt_modules};
+            
+            uint16_t jk_errormask = id(errors_bitmask).state;
+            
             // Alarms
             if ((jk_errormask & 0x04) | (jk_errormask & 0x80) | (jk_errormask & 0x400)) { // Hight.Voltage.Alarm JK bit 2,7,10 
                can_mesg[0] = 0x02; // bit 1
@@ -192,6 +185,7 @@ interval:
             if (jk_errormask & 0x80) { // Cell Imbalance JK bit 7
                can_mesg[1] = can_mesg[1] | 0x10; // bit 4 
             }
+            
             /// Warnings
             can_mesg[2] = 0x00;
             can_mesg[3] = 0x00;
@@ -300,8 +294,19 @@ interval:
           data: !lambda |-
             int soh = round(((id(charging_cycles).state/${max_cycles})-1)*-100);
             uint8_t can_mesg[3];
-            can_mesg[0] = uint16_t(id(capacity_remaining).state) & 0xff;
-            can_mesg[1] = uint16_t(id(capacity_remaining).state) >> 8 & 0xff;
+
+            int soc = 0; 
+            if(id(man_soc).state < 0)
+            {
+              soc = id(capacity_remaining).state;
+            }
+            else
+            {
+              soc = id(man_soc).state;
+            }
+
+            can_mesg[0] = soc & 0xff;
+            can_mesg[1] = soc >> 8 & 0xff;
             can_mesg[2] = soh & 0xff;
             can_mesg[3] = soh >> 8 & 0xff;
             ESP_LOGI("main", "send can id: 0x355 hex: %x %x %x %x", can_mesg[0], can_mesg[1], can_mesg[2], can_mesg[3]);
@@ -316,8 +321,8 @@ interval:
             can_mesg[1] = uint16_t(id(total_voltage).state * 100) >> 8 & 0xff;
             can_mesg[2] = int16_t(id(current).state * 10) & 0xff;
             can_mesg[3] = int16_t(id(current).state * 10) >> 8 & 0xff;
-            can_mesg[4] = int16_t(max(id(temperature_sensor_1).state, id(temperature_sensor_2).state)* 10) & 0xff;
-            can_mesg[5] = int16_t(max(id(temperature_sensor_1).state, id(temperature_sensor_2).state)* 10) >> 8 & 0xff;
+            can_mesg[4] = int16_t(id(temperature_sensor_1).state * 10) & 0xff;
+            can_mesg[5] = int16_t(id(temperature_sensor_1).state * 10) >> 8 & 0xff;
             ESP_LOGI("main", "send can id: 0x356 hex: %x %x %x %x %x %x", can_mesg[0], can_mesg[1], can_mesg[2], can_mesg[3], can_mesg[4], can_mesg[5]);
             return {can_mesg[0], can_mesg[1], can_mesg[2], can_mesg[3], can_mesg[4], can_mesg[5]};
       - delay: 10ms
@@ -345,10 +350,10 @@ interval:
             int max_cell_voltage_i = id(max_cell_voltage).state * 100.0;
             int min_cell_voltage_i = id(min_cell_voltage).state * 100.0;
             uint8_t can_mesg[7];
-            can_mesg[0] = int16_t(max(id(temperature_sensor_1).state, id(temperature_sensor_2).state)* 10) & 0xff;
-            can_mesg[1] = int16_t(max(id(temperature_sensor_1).state, id(temperature_sensor_2).state)* 10) >> 8 & 0xff;
-            can_mesg[2] = int16_t(min(id(temperature_sensor_1).state, id(temperature_sensor_2).state)* 10) & 0xff;
-            can_mesg[3] = int16_t(min(id(temperature_sensor_1).state, id(temperature_sensor_2).state)* 10) >> 8 & 0xff;
+            can_mesg[0] = int16_t(id(temperature_sensor_1).state * 10) & 0xff;
+            can_mesg[1] = int16_t(id(temperature_sensor_1).state * 10) >> 8 & 0xff;
+            can_mesg[2] = int16_t(id(temperature_sensor_1).state * 10) & 0xff;
+            can_mesg[3] = int16_t(id(temperature_sensor_1).state * 10) >> 8 & 0xff;
             can_mesg[4] = max_cell_voltage_i & 0xff;
             can_mesg[5] = max_cell_voltage_i >> 8 & 0xff;
             can_mesg[6] = min_cell_voltage_i & 0xff;
@@ -380,32 +385,23 @@ interval:
 
       - lambda: |- # Detect no CAN reply
           if (id(can_305_rx) > 30) {
-            ESP_LOGI("main", "No rx can 0x305 reply. Rebooting...");
-            id(restart_button).press();
+            //ESP_LOGI("main", "No rx can 0x305 reply. Rebooting...");
+            //id(restart_button).press();
           } else {
             id(can_305_rx) ++;
           }
 binary_sensor:
-  - platform: jk_bms
+  - platform: jk_bms_ble
     balancing:
       name: "${name} balancing"
-    balancing_switch:
-      name: "${name} balancing switch"
     charging:
       name: "${name} charging"
-    charging_switch:
-      id: charging_switch
-      name: "${name} charging switch"
     discharging:
       name: "${name} discharging"
-    discharging_switch:
-      id: discharging_switch
-      name: "${name} discharging switch"
-    dedicated_charger_switch:
-      name: "${name} dedicated charger switch"
+
 
 sensor:
-  - platform: jk_bms
+  - platform: jk_bms_ble
     min_cell_voltage:
       id: min_cell_voltage
       name: "${name} min cell voltage"
@@ -492,87 +488,20 @@ sensor:
     discharging_power:
       name: "${name} discharging power"
     capacity_remaining:
-      id: capacity_remaining
+      
       name: "${name} capacity remaining"
-    capacity_remaining_derived:
-      name: "${name} capacity remaining derived"
-    temperature_sensors:
-      name: "${name} temperature sensors"
     charging_cycles:
       name: "${name} charging cycles"
       id: charging_cycles
     total_charging_cycle_capacity:
       name: "${name} total charging cycle capacity"
-    battery_strings:
-      name: "${name} battery strings"
     errors_bitmask:
       id: errors_bitmask
       name: "${name} errors bitmask"
-    operation_mode_bitmask:
-      name: "${name} operation mode bitmask"
-    total_voltage_overvoltage_protection:
-      name: "${name} total voltage overvoltage protection"
-    total_voltage_undervoltage_protection:
-      id: total_voltage_undervoltage_protection
-      name: "${name} total voltage undervoltage protection"
-    cell_voltage_overvoltage_protection:
-      name: "${name} cell voltage overvoltage protection"
-    cell_voltage_overvoltage_recovery:
-      name: "${name} cell voltage overvoltage recovery"
-    cell_voltage_overvoltage_delay:
-      name: "${name} cell voltage overvoltage delay"
-    cell_voltage_undervoltage_protection:
-      name: "${name} cell voltage undervoltage protection"
-    cell_voltage_undervoltage_recovery:
-      name: "${name} cell voltage undervoltage recovery"
-    cell_voltage_undervoltage_delay:
-      name: "${name} cell voltage undervoltage delay"
-    cell_pressure_difference_protection:
-      name: "${name} cell pressure difference protection"
-    discharging_overcurrent_protection:
-      id: discharging_overcurrent_protection
-      name: "${name} discharging overcurrent protection"
-    discharging_overcurrent_delay:
-      name: "${name} discharging overcurrent delay"
-    charging_overcurrent_protection:
-      id: charging_overcurrent_protection
-      name: "${name} charging overcurrent protection"
-    charging_overcurrent_delay:
-      name: "${name} charging overcurrent delay"
-    balance_starting_voltage:
-      name: "${name} balance starting voltage"
-    balance_opening_pressure_difference:
-      name: "${name} balance opening pressure difference"
-    power_tube_temperature_protection:
-      name: "${name} power tube temperature protection"
-    power_tube_temperature_recovery:
-      name: "${name} power tube temperature recovery"
-    temperature_sensor_temperature_protection:
-      name: "${name} temperature sensor temperature protection"
-    temperature_sensor_temperature_recovery:
-      name: "${name} temperature sensor temperature recovery"
-    temperature_sensor_temperature_difference_protection:
-      name: "${name} temperature sensor temperature difference protection"
-    charging_high_temperature_protection:
-      name: "${name} charging high temperature protection"
-    discharging_high_temperature_protection:
-      name: "${name} discharging high temperature protection"
-    charging_low_temperature_protection:
-      name: "${name} charging low temperature protection"
-    charging_low_temperature_recovery:
-      name: "${name} charging low temperature recovery"
-    discharging_low_temperature_protection:
-      name: "${name} discharging low temperature protection"
-    discharging_low_temperature_recovery:
-      name: "${name} discharging low temperature recovery"
-    total_battery_capacity_setting:
-      name: "${name} total battery capacity setting"
-    current_calibration:
-      name: "${name} current calibration"
-    device_address:
-      name: "${name} device address"
-    sleep_wait_time:
-      name: "${name} sleep wait time"
+    state_of_charge:
+      name: "${name} state of charge"
+      id: capacity_remaining
+
 #    alarm_low_volume:
 #      name: "${name} alarm low volume"
 #    manufacturing_date:
@@ -581,7 +510,7 @@ sensor:
       name: "${name} total runtime"
 #    start_current_calibration:
 #      name: "${name} start current calibration"
-    actual_battery_capacity:
+    total_battery_capacity_setting:
       name: "${name} actual battery capacity"
 #    protocol_version:
 #      name: "${name} protocol version"
@@ -617,21 +546,11 @@ sensor:
     
     
 text_sensor:
-  - platform: jk_bms
+  - platform: jk_bms_ble
     errors:
       name: "${name} errors"
-    operation_mode:
+    operation_status:
       name: "${name} operation mode"
-    battery_type:
-      name: "${name} battery type"
-    password:
-      name: "${name} password"
-    device_type:
-      name: "${name} device type"
-    software_version:
-      name: "${name} software version"
-    manufacturer:
-      name: "${name} manufacturer"
     total_runtime_formatted:
       name: "${name} total runtime formatted"
 # Template text sensors
@@ -649,7 +568,7 @@ number:
     name: "${name} Absorption voltage"
     id: "charging_voltage"
     step: 0.1
-    min_value: 52.8
+    min_value: 48
     max_value: 58.5
     mode: slider
     initial_value: "${absorption_v}"
@@ -660,7 +579,7 @@ number:
     name: "${name} Mininium voltage"
     id: "mininium_voltage"
     step: 0.1
-    min_value: 37.5
+    min_value: 35
     max_value: 50
     mode: slider
     initial_value: "${min_dischange_v}"
@@ -693,10 +612,10 @@ number:
     name: "${name} Discharge Taper Voltage"
     id: "taper_voltage"
     step: 1
-    min_value: 40
+    min_value: 32
     max_value: 55
     mode: slider
-    initial_value: "${discharge_taper}"
+    initial_value: 32
     unit_of_measurement: V
     icon: mdi:battery-charging
     optimistic: true
@@ -708,10 +627,23 @@ number:
     min_value: 0
     max_value: 4
     mode: slider
-    initial_value: "${charge_taper}"
+    initial_value: 0
     unit_of_measurement: V
     icon: mdi:battery-charging
     optimistic: true
+
+  - platform: template
+    name: "${name} Manual SOC"
+    id: "man_soc"
+    step: 1
+    min_value: -1
+    max_value: 100
+    mode: slider
+    initial_value: -1
+    unit_of_measurement: "%"
+    icon: mdi:battery-charging
+    optimistic: true
+
 
 script:
   - id: absorption_script
@@ -733,5 +665,16 @@ switch:
     name: ${name} Charging manually (top bal)
     id: inverter_chg_on
     optimistic: true
+  - platform: jk_bms_ble
+    charging:
+      name: "${name} charging"
+      id: charging_switch
+    discharging:
+      name: "${name} discharging"
+      id: discharging_switch
+    balancer:
+      name: "${name} balancer"
+
+
 
     
